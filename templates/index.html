@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="editorial-hero" aria-labelledby="hero-title">
+  <span class="intro-tag">{{ t('Анализ кожи по фотографии') }}</span>
+  <h1 id="hero-title">{{ t('Для тех, кто хочет') }}<br>{{ t('понимать свою кожу.') }}</h1>
+  <p>{{ t('Одна фотография. Понятный анализ. Персональный уход.') }}<br>{{ t('Чуть больше внимания к себе — каждый день.') }}</p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="/analyze">{{ t('Начать анализ') }} <span class="ms-2" aria-hidden="true">↗</span></a>
+    <a class="btn btn-outline-secondary" href="/consult">{{ t('Получить консультацию') }}</a>
+  </div>
+</section>
+<section class="showcase-grid" aria-label="{{ t('Возможности сервиса') }}">
+  <div class="showcase-pink">
+    <span class="panel-kicker">{{ t('ВАША КОЖА, ВАШ РИТМ') }}</span>
+    <div class="care-note">
+      <h2>{{ t('Всё начинается с вас.') }}</h2>
+      <p>{{ t('Первый шаг к осознанному уходу') }}</p>
+      <div class="care-note-bottom"><strong>{{ t('Одно фото.') }}</strong><a href="/analyze">{{ t('Начать') }} <span aria-hidden="true">↗</span></a></div>
+    </div>
+    <span class="panel-bottom">{{ t('Меньше догадок. Больше понимания.') }}</span>
+  </div>
+  <div class="showcase-green">
+    <div class="showcase-heading"><h2>{{ t('Всё для знакомства с вашей кожей') }}</h2><span aria-hidden="true">↗</span></div>
+    <div class="tool-preview">
+      <div class="preview-tools">
+        <div class="analysis-preview">
+          <div class="preview-label">{{ t('Ваш персональный анализ') }} <span aria-hidden="true">✳</span></div>
+          <div class="preview-row"><span class="preview-icon" aria-hidden="true">◎</span><div><strong>{{ t('Тип кожи') }}</strong><small>{{ t('Узнайте её особенности') }}</small></div><span aria-hidden="true">↗</span></div>
+          <div class="preview-row"><span class="preview-icon" aria-hidden="true">⌕</span><div><strong>{{ t('Признаки акне') }}</strong><small>{{ t('Внимательный анализ снимка') }}</small></div><span aria-hidden="true">↗</span></div>
+          <div class="preview-row"><span class="preview-icon" aria-hidden="true">≋</span><div><strong>{{ t('Рекомендации') }}</strong><small>{{ t('Следующий шаг в уходе') }}</small></div><span aria-hidden="true">↗</span></div>
+        </div>
+        <a class="consult-preview" href="/consult"><span>{{ t('Есть вопросы?') }}</span><strong>{{ t('Спросите ИИ-помощника') }} <span aria-hidden="true">↗</span></strong></a>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="steps-section" aria-labelledby="steps-title">
+  <div class="section-heading"><h2 id="steps-title">{{ t('Уход без лишних сложностей.') }}</h2><p>{{ t('Три простых шага') }}</p></div>
+  <div class="steps-grid">
+    <article><span class="step-number">{{ t('01 / СНИМОК') }}</span><h3>{{ t('Загрузите фотографию') }}</h3><p>{{ t('Хорошее освещение, без фильтров. Пусть кожа будет собой.') }}</p></article>
+    <article><span class="step-number">{{ t('02 / ПОНИМАНИЕ') }}</span><h3>{{ t('Изучите результат') }}</h3><p>{{ t('Узнайте тип кожи и признаки акне. Вернитесь к результатам в личном кабинете.') }}</p></article>
+    <article><span class="step-number">{{ t('03 / ЗАБОТА') }}</span><h3>{{ t('Найдите свой подход') }}</h3><p>{{ t('Задайте вопросы помощнику и получите рекомендации по уходу.') }}</p></article>
+  </div>
+</section>
+{% endblock %}

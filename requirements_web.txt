@@ -1,0 +1,10 @@
+Flask>=2.0
+pillow
+numpy
+opencv-python
+requests
+
+# Optional (for full model functionality) - may be heavy to install
+torch
+torchvision
+tensorflow

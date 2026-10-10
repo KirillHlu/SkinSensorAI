@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <div class="card border-0">
+      <div class="card-body">
+        <span class="badge rounded-pill text-bg-light px-3 py-2 mb-3"><i class="bi bi-stars me-2"></i>{{ t('Анализ кожи') }}</span>
+        <h3 class="card-title">{{ t('Ваш персональный анализ') }}</h3>
+        <p class="text-muted">{{ t('Снимите лицо при хорошем освещении, без сильных фильтров и масок — так результат будет точнее.') }}</p>
+        <form method="post" enctype="multipart/form-data">
+          <div class="mb-4 upload-field">
+            <label for="skin-image" class="form-label"><i class="bi bi-camera me-2" aria-hidden="true"></i>{{ t('Выберите фотографию лица') }}</label>
+            <input id="skin-image" class="form-control" type="file" name="image" accept="image/png,image/jpeg" required>
+            <small>{{ t('JPG или PNG · хорошее освещение · без фильтров') }}</small>
+          </div>
+          <div class="row align-items-center">
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="analysis-mode">{{ t('Режим анализа') }}</label>
+              <select id="analysis-mode" class="form-select" name="mode">
+                <option value="quick">{{ t('Быстрый') }}</option>
+                <option value="detailed">{{ t('Подробный') }}</option>
+              </select>
+            </div>
+            <div class="col-md-6 text-md-end mb-3">
+              <button class="btn btn-primary btn-lg"><i class="bi bi-sparkles me-2"></i>{{ t('Запустить анализ') }}</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

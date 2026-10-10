@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h3 class="card-title">{{ t('Профиль') }}</h3>
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label" for="name">{{ t('Имя') }}</label>
+            <input class="form-control" id="name" name="name" value="{{ user.name if user }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="age">{{ t('Возраст') }}</label>
+            <input class="form-control" id="age" name="age" value="{{ user.age if user }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="preferences">{{ t('Предпочтения / заметки') }}</label>
+            <textarea class="form-control" id="preferences" name="preferences">{{ user.preferences if user }}</textarea>
+          </div>
+          <div class="d-flex justify-content-end">
+            <button class="btn btn-primary">{{ t('Сохранить') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

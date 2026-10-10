@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row gy-4">
+  <div class="col-lg-7">
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h3 class="card-title">{{ t('Результат анализа') }}</h3>
+        <div class="row">
+          <div class="col-sm-6 mb-2"><strong>{{ t('Режим:') }}</strong> {{ t(analysis.mode) }}</div>
+          <div class="col-sm-6 mb-2"><strong>{{ t('Тип кожи:') }}</strong> {{ t(analysis.dno_prediction) }} ({{ '%.2f'|format(analysis.dno_confidence) }})</div>
+          <div class="col-sm-6 mb-2"><strong>{{ t('Акне обнаружено:') }}</strong> {{ t('Да' if analysis.acne_detected else 'Нет') }}</div>
+          <div class="col-sm-6 mb-2"><strong>{{ t('Уверенность (акне):') }}</strong> {{ '%.2f'|format(analysis.acne_confidence) }}</div>
+        </div>
+
+        <div class="mt-3">
+          <h5>{{ t('Рекомендации') }}</h5>
+          <div class="recommendation-box">{{ t(analysis.recommendation) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5 text-center">
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h5 class="mb-3">{{ t('Исходное изображение') }}</h5>
+        {% if analysis.image_path %}
+          <img src="/{{ analysis.image_path }}" alt="{{ t('Фотография, использованная для анализа кожи') }}" class="img-fluid rounded" style="max-height:480px;">
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

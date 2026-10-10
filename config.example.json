@@ -1,0 +1,11 @@
+{
+  "flask": {
+    "debug": false,
+    "port": 5000,
+    "secret_key": "replace-with-a-random-secret"
+  },
+  "gigachat": {
+    "client_id": "",
+    "client_secret": ""
+  }
+}

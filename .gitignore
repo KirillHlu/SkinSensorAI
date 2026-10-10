@@ -1,0 +1,33 @@
+# Local configuration and credentials
+config.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python environment and caches
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local user data
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+static/uploads/
+
+# Model weights are distributed separately; see models/README.md
+models/*.keras
+models/*.pth
+models/*.pt
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

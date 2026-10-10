@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Схема работы сервиса</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --text: #172234;
+      --muted: #667085;
+      --purple: #6b5cf6;
+      --blue: #2f80ed;
+      --green: #2bb673;
+      --orange: #f59e0b;
+      --pink: #ec4899;
+      --line: #dfe7f5;
+      --shadow: 0 18px 40px rgba(27, 39, 63, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .slide {
+      width: 1400px;
+      height: 820px;
+      background: linear-gradient(180deg, #f9fbff 0%, #eef4ff 100%);
+      border: 1px solid #dde7f8;
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 36px 34px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at top left, rgba(107,92,246,0.12), transparent 22%),
+        radial-gradient(circle at bottom right, rgba(47,128,237,0.12), transparent 20%);
+      pointer-events: none;
+    }
+
+    h1 {
+      position: relative;
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: 0.2px;
+      text-align: center;
+      color: var(--text);
+    }
+
+    .subtitle {
+      position: relative;
+      text-align: center;
+      color: var(--muted);
+      font-size: 16px;
+      margin-top: 10px;
+      margin-bottom: 24px;
+    }
+
+    .flow {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      margin-top: 14px;
+      flex-wrap: nowrap;
+    }
+
+    .step {
+      position: relative;
+      width: 170px;
+      min-height: 130px;
+      background: rgba(255,255,255,0.9);
+      border: 2px solid var(--line);
+      border-radius: 18px;
+      padding: 16px 12px 12px;
+      text-align: center;
+      box-shadow: 0 8px 18px rgba(17, 24, 39, 0.04);
+      z-index: 1;
+    }
+
+    .step .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      font-weight: 700;
+      font-size: 14px;
+      color: white;
+      margin-bottom: 10px;
+    }
+
+    .step h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .step p {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+
+    .step.purple .num { background: var(--purple); }
+    .step.blue .num { background: var(--blue); }
+    .step.green .num { background: var(--green); }
+    .step.orange .num { background: var(--orange); }
+    .step.pink .num { background: var(--pink); }
+
+    .arrow {
+      position: relative;
+      width: 52px;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(107,92,246,0.9), rgba(47,128,237,0.9));
+      border-radius: 15px;
+      flex-shrink: 0;
+    }
+
+    .arrow::after {
+      content: "";
+      position: absolute;
+      right: -3px;
+      top: 50%;
+      width: 0;
+      height: 0;
+      transform: translateY(-50%);
+      border-left: 11px solid rgba(47,128,237,0.9);
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+    }
+
+    .second-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 26px;
+      margin-top: 28px;
+      position: relative;
+    }
+
+    .branch {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      width: 660px;
+    }
+
+    .models-box {
+      background: rgba(255,255,255,0.86);
+      border: 2px solid var(--line);
+      border-radius: 20px;
+      padding: 18px 18px 10px;
+      box-shadow: 0 8px 18px rgba(17, 24, 39, 0.04);
+    }
+
+    .models-box h2 {
+      margin: 0 0 14px;
+      font-size: 20px;
+      text-align: center;
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .model {
+      border-radius: 16px;
+      padding: 14px 12px;
+      background: #f8fafc;
+      border: 1px solid #e3eaf6;
+    }
+
+    .model .tag {
+      display: inline-block;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .model .tag.dno { background: rgba(47,128,237,0.1); color: var(--blue); }
+    .model .tag.acne { background: rgba(236,72,153,0.1); color: var(--pink); }
+
+    .model h4 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .model p {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .db-box {
+      width: 300px;
+      background: rgba(255,255,255,0.9);
+      border: 2px solid var(--line);
+      border-radius: 20px;
+      padding: 18px 16px;
+      box-shadow: 0 8px 18px rgba(17, 24, 39, 0.04);
+    }
+
+    .db-box h3 {
+      margin: 0 0 10px;
+      text-align: center;
+      font-size: 18px;
+    }
+
+    .db-box ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .db-box li {
+      background: #f8fafc;
+      border: 1px solid #e4ebf8;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .bottom-band {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      margin-top: 22px;
+      position: relative;
+    }
+
+    .result-card {
+      width: 320px;
+      background: rgba(255,255,255,0.9);
+      border: 2px solid var(--line);
+      border-radius: 18px;
+      padding: 14px 16px;
+      text-align: center;
+      box-shadow: 0 8px 18px rgba(17, 24, 39, 0.04);
+    }
+
+    .result-card strong {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .result-card span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .result-card.purple { border-color: rgba(107,92,246,0.35); }
+    .result-card.green { border-color: rgba(43,182,115,0.35); }
+
+    .divider {
+      width: 52px;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(107,92,246,0.9), rgba(43,182,115,0.9));
+      border-radius: 15px;
+      position: relative;
+    }
+
+    .divider::after {
+      content: "";
+      position: absolute;
+      right: -3px;
+      top: 50%;
+      width: 0;
+      height: 0;
+      transform: translateY(-50%);
+      border-left: 11px solid rgba(43,182,115,0.9);
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+    }
+  </style>
+</head>
+<body>
+  <div class="slide">
+    <h1>Схема работы сервиса анализа кожи</h1>
+    <div class="subtitle">От загрузки фото до рекомендаций и консультации</div>
+
+    <div class="flow">
+      <div class="step purple">
+        <div class="num">1</div>
+        <h3>Пользователь</h3>
+        <p>регистрация / вход и загрузка фото лица</p>
+      </div>
+      <div class="arrow"></div>
+
+      <div class="step blue">
+        <div class="num">2</div>
+        <h3>Фото</h3>
+        <p>сохранение в uploads и привязка к пользователю</p>
+      </div>
+      <div class="arrow"></div>
+
+      <div class="step green">
+        <div class="num">3</div>
+        <h3>Обработка</h3>
+        <p>предобработка изображения и запуск моделей</p>
+      </div>
+      <div class="arrow"></div>
+
+      <div class="step orange">
+        <div class="num">4</div>
+        <h3>Анализ</h3>
+        <p>определение типа кожи и признаков акне</p>
+      </div>
+      <div class="arrow"></div>
+
+      <div class="step pink">
+        <div class="num">5</div>
+        <h3>Результат</h3>
+        <p>рекомендации + сохранение в историю</p>
+      </div>
+    </div>
+
+    <div class="second-row">
+      <div class="branch">
+        <div class="models-box">
+          <h2>Модели и логика</h2>
+          <div class="mini-grid">
+            <div class="model">
+              <span class="tag dno">DNO</span>
+              <h4>Тип кожи</h4>
+              <p>Классифицирует фото по типам: нормальная, жирная, сухая. Возвращает прогноз и уверенность.</p>
+            </div>
+            <div class="model">
+              <span class="tag acne">Acne</span>
+              <h4>Акне</h4>
+              <p>Определяет наличие воспалений и формирует рекомендации по уходу и профилактике.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="db-box">
+        <h3>База данных</h3>
+        <ul>
+          <li>users — аккаунты и профиль</li>
+          <li>analysis_history — результаты анализов</li>
+          <li>messages — история чата</li>
+          <li>reminders — напоминания</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="bottom-band">
+      <div class="result-card purple">
+        <strong>Результат</strong>
+        <span>выводится на странице с фото, прогнозом и рекомендациями</span>
+      </div>
+      <div class="divider"></div>
+      <div class="result-card green">
+        <strong>Консультация</strong>
+        <span>GigaChat анализирует историю и актуальные результаты пользователя</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
