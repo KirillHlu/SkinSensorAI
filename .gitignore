@@ -1,5 +1,9 @@
 # Local configuration and credentials
 config.json
+.deploy-private/
+gigachat-transfer.json
+gigachat-ca.crt
+pythonanywhere-live.png
 .env
 .env.*
 !.env.example

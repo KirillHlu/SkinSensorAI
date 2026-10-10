@@ -56,3 +56,13 @@ Upload `best_model_dno.keras` and `skin_classifier.pth` into `models/` inside yo
 To start the server manually, run `bash .devcontainer/start.sh`. Check `.codespaces/server.log` for startup errors. To restart after adding models, stop and restart the Codespace.
 
 Stop the Codespace when finished to conserve compute quota. Storage continues to count while it is stopped. This is a development/demo environment, not always-on hosting. Do not enable a paid plan to run this demo unless you intend to pay for it.
+
+## PythonAnywhere
+
+The deployment uses Python 3.11, preinstalled CPU PyTorch/torchvision, and `keras==3.14.0` with the PyTorch backend. This avoids installing TensorFlow in the free account's disk quota. Install Keras with `python3.11 -m pip install --user --no-cache-dir keras==3.14.0`; do not install the full local requirements into this account.
+
+Clone the source into `~/SkinSensorAI` and upload both model weights into `models/`. Place the official GigaChat root CA certificate at `gigachat-ca.crt` (see [Sber's certificate instructions](https://developers.sber.ru/docs/ru/gigachat/certificates)). Keep GigaChat credentials in the private `config.json`, outside Git. An optional `gigachat-transfer.json` containing only `client_id` and `client_secret` is imported and removed by the setup script.
+
+Run `python3.11 ~/SkinSensorAI/setup_pythonanywhere.py --check`. This backs up the existing default-domain WSGI file, configures one-thread inference and secure session cookies, creates a random session secret only if no config exists, and checks inference with a synthetic image. It preserves existing database contents. Set both the Web tab's source and working directories to `~/SkinSensorAI` (using the full absolute path), enable Force HTTPS, and click Reload.
+
+The free web app requires monthly renewal using the Web tab's “Run until 1 month from today” button. Uploads and SQLite data remain private deployment files and must not be committed.

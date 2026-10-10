@@ -5,15 +5,21 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Try to import heavy libs, but allow graceful degradation
+# Keep image handling available even when a model backend is unavailable.
 try:
-    import tensorflow as tf
     from PIL import Image
     import numpy as np
 except Exception:
-    tf = None
     Image = None
     np = None
+
+try:
+    if os.environ.get('KERAS_BACKEND') == 'torch':
+        import keras
+    else:
+        from tensorflow import keras
+except Exception:
+    keras = None
 
 try:
     import torch
@@ -36,13 +42,13 @@ class DNOClassifier:
         self._load_model()
 
     def _load_model(self):
-        if tf is None:
-            logger.warning('TensorFlow не доступен — DNO модель не будет загружена')
+        if keras is None:
+            logger.warning('Keras backend недоступен — DNO модель не будет загружена')
             return
         dno_path = os.path.join(self.models_dir, 'best_model_dno.keras')
         if os.path.exists(dno_path):
             try:
-                self.model = tf.keras.models.load_model(dno_path)
+                self.model = keras.models.load_model(dno_path, compile=False)
                 logger.info('DNO model loaded')
             except Exception as e:
                 logger.error(f'Ошибка загрузки DNO модели: {e}')
@@ -50,13 +56,13 @@ class DNOClassifier:
             logger.warning(f'DNO model not found at {dno_path}')
 
     def predict(self, image_path):
-        if self.model is None or tf is None:
+        if self.model is None or keras is None or np is None:
             return None
         try:
-            img = tf.keras.preprocessing.image.load_img(image_path, target_size=self.IMG_SIZE)
-            img_array = tf.keras.preprocessing.image.img_to_array(img)
+            img = keras.utils.load_img(image_path, target_size=self.IMG_SIZE)
+            img_array = keras.utils.img_to_array(img)
             img_batch = np.expand_dims(img_array, axis=0)
-            img_batch = tf.keras.applications.mobilenet_v2.preprocess_input(img_batch)
+            img_batch = keras.applications.mobilenet_v2.preprocess_input(img_batch)
             pred = self.model.predict(img_batch, verbose=0)[0]
             class_idx = int(pred.argmax())
             return {'prediction': self.DNO_CLASSES.get(class_idx, 'неизвестно'), 'confidence': float(pred[class_idx])}

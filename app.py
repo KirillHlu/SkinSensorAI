@@ -130,6 +130,9 @@ def db_get_analysis_context(user_id, limit=10):
 
 
 def gigachat_post(url, **kwargs):
+    ca_bundle = os.environ.get('GIGACHAT_CA_BUNDLE')
+    if ca_bundle:
+        kwargs['verify'] = ca_bundle
     for attempt in range(2):
         try:
             return requests.post(url, **kwargs)
