@@ -1,0 +1,16 @@
+{
+  "name": "SkinSensorAI",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
+  "forwardPorts": [
+    5000
+  ],
+  "portsAttributes": {
+    "5000": {
+      "label": "SkinSensorAI",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "bash .devcontainer/start.sh",
+  "remoteUser": "vscode"
+}

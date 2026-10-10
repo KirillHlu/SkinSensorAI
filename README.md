@@ -46,3 +46,13 @@ Local credentials, virtual environments, databases, uploaded photos, and model w
 ## Scope
 
 SkinSensorAI provides skincare guidance and does not replace a dermatologist. Publishing this repository does not deploy the running application; production hosting requires a separate deployment configuration.
+
+## GitHub Codespaces
+
+Open this repository in Codespaces on the 2-core machine. Initial setup installs CPU-only PyTorch and TensorFlow, creates a private random Flask session secret, and starts Gunicorn on port 5000. Open the forwarded port from the Ports panel; it stays private by default.
+
+Upload `best_model_dno.keras` and `skin_classifier.pth` into `models/` inside your Codespace (do not commit them). Set `GIGACHAT_CLIENT_ID` and `GIGACHAT_CLIENT_SECRET` as Codespaces secrets restricted to this repository, then restart the Codespace. Without these, the interface works but image predictions and consultations are unavailable respectively.
+
+To start the server manually, run `bash .devcontainer/start.sh`. Check `.codespaces/server.log` for startup errors. To restart after adding models, stop and restart the Codespace.
+
+Stop the Codespace when finished to conserve compute quota. Storage continues to count while it is stopped. This is a development/demo environment, not always-on hosting. Do not enable a paid plan to run this demo unless you intend to pay for it.

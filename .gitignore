@@ -31,3 +31,6 @@ models/*.pt
 .DS_Store
 Thumbs.db
 *.log
+
+# Codespaces process state
+.codespaces/
