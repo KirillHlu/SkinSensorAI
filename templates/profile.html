@@ -6,6 +6,7 @@
       <div class="card-body">
         <h3 class="card-title">{{ t('Профиль') }}</h3>
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label class="form-label" for="name">{{ t('Имя') }}</label>
             <input class="form-control" id="name" name="name" value="{{ user.name if user }}">

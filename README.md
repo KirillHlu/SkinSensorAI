@@ -66,3 +66,27 @@ Clone the source into `~/SkinSensorAI` and upload both model weights into `model
 Run `python3.11 ~/SkinSensorAI/setup_pythonanywhere.py --check`. This backs up the existing default-domain WSGI file, configures one-thread inference and secure session cookies, creates a random session secret only if no config exists, and checks inference with a synthetic image. It preserves existing database contents. Set both the Web tab's source and working directories to `~/SkinSensorAI` (using the full absolute path), enable Force HTTPS, and click Reload.
 
 The free web app requires monthly renewal using the Web tab's “Run until 1 month from today” button. Uploads and SQLite data remain private deployment files and must not be committed.
+
+## Security protections
+
+Account ownership comes exclusively from the signed login session. Legacy `user_id` cookies are ignored and removed; login/registration never reassign another user's data. Existing accounts, analyses and chats are preserved.
+
+New images are stored in `instance/uploads/`. The owner-only `/result/<id>/image` endpoint also supports existing `static/uploads/` images. Public static serving uses an explicit asset allowlist. **Do not configure a web server or hosting static mapping for the entire `static/` directory**: that would bypass Flask's protections for legacy images. Map only public assets such as `static/css/` if needed. Back up the database and both upload directories together.
+
+Every state-changing form and chat request requires a session-bound CSRF token. Logout is POST-only, post-login redirects accept local paths only, `/debug` is removed, debug mode is off, and responses set CSP, framing, MIME-sniffing and cache protections. HTTPS responses include HSTS. Local HTTP development works by default; enable `SKINSENSOR_HTTPS=1` behind HTTPS (the PythonAnywhere WSGI setup already enables secure session cookies).
+
+The application replaces missing/short development session secrets with a persistent random key in `instance/session.key`. Preserve this private key across restarts and never commit it. GigaChat TLS verification is always enabled: use the official root certificate in `gigachat-ca.crt` or `GIGACHAT_CA_BUNDLE`.
+
+Default limits in `security.py` are stored in SQLite and shared across workers/restarts:
+
+- Login: 20 attempts per IP and 10 per IP/email pair per 15 minutes. Failed attempts from one IP do not lock the account on other IPs; users sharing an IP share its limits. Registration: 5 per IP per hour, 100 globally per day.
+- Analysis: 10 per account and 30 per IP per hour, 100 globally per day.
+- Chat: 10 per minute and 100 per day per account, 30 per IP per minute, 300 globally per day. Messages are capped at 4,000 characters.
+- Image reads: 60 per account and 120 per IP per minute. Expensive work is serialized with an expiring SQLite lease.
+- Request bodies: 8 MiB. Images: JPEG/PNG only, at most 16 million pixels, decoded and re-encoded without original metadata. Upload storage: 20 MiB per account and 200 MiB total, including legacy images.
+
+Per-account and IP limits count rejected attempts to deter spam. Shared daily quotas are reserved only after input validation and admission to processing; rejected or busy requests do not consume them. An admitted operation still counts if downstream processing fails.
+
+Limits use the server's `REMOTE_ADDR`; local runs ignore forwarded headers. The PythonAnywhere WSGI entrypoint trusts exactly the last `X-Forwarded-For` entry supplied by its load balancer, as documented by [PythonAnywhere](https://help.pythonanywhere.com/pages/WebAppClientIPAddresses). Earlier entries supplied by clients are ignored. Do not use that proxy configuration on a server directly exposed to clients. Application limits supplement, rather than replace, hosting-level traffic protection.
+
+Run `python -m unittest test_security test_i18n -v`. Security tests use temporary databases, synthetic pictures and mocked ML/GigaChat; they do not touch real user data or make paid API calls.

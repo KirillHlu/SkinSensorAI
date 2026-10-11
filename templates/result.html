@@ -24,7 +24,7 @@
       <div class="card-body">
         <h5 class="mb-3">{{ t('Исходное изображение') }}</h5>
         {% if analysis.image_path %}
-          <img src="/{{ analysis.image_path }}" alt="{{ t('Фотография, использованная для анализа кожи') }}" class="img-fluid rounded" style="max-height:480px;">
+          <img src="{{ url_for('result_image', analysis_id=analysis.id) }}" alt="{{ t('Фотография, использованная для анализа кожи') }}" class="img-fluid rounded" style="max-height:480px;">
         {% endif %}
       </div>
     </div>

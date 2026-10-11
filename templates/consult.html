@@ -15,7 +15,7 @@
         </div>
 
         <form id="chatForm" class="d-flex gap-2">
-          <input id="messageInput" name="message" class="form-control" aria-label="{{ t('Сообщение ИИ-помощнику') }}" placeholder="{{ t('Что вы хотите узнать о своей коже?') }}">
+          <input id="messageInput" name="message" maxlength="4000" class="form-control" aria-label="{{ t('Сообщение ИИ-помощнику') }}" placeholder="{{ t('Что вы хотите узнать о своей коже?') }}">
           <button class="btn btn-primary" id="sendBtn" type="submit" aria-label="{{ t('Отправить сообщение') }}">
             <i class="bi bi-send-fill"></i>
           </button>
@@ -26,7 +26,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ g.csp_nonce }}">
 async function sendMessage(e){
   e.preventDefault();
   const input = document.getElementById('messageInput');
@@ -53,7 +53,7 @@ async function sendMessage(e){
   try {
     const form = new FormData();
     form.append('message', txt);
-    const res = await fetch('/consult/send', { method: 'POST', body: form });
+    const res = await fetch('/consult/send', { method: 'POST', body: form, headers: {'X-CSRF-Token': {{ csrf_token()|tojson }}} });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || {{ t('Ошибка соединения')|tojson }});
 

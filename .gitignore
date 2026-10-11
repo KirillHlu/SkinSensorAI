@@ -38,3 +38,6 @@ Thumbs.db
 
 # Codespaces process state
 .codespaces/
+
+# Private uploads and generated session key
+instance/

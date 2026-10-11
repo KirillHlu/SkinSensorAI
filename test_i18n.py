@@ -2,6 +2,7 @@
 import importlib.util
 from contextlib import closing
 import json
+import os
 from pathlib import Path
 import re
 import sqlite3
@@ -10,9 +11,18 @@ import tempfile
 import types
 import unittest
 from unittest.mock import patch, Mock
+from flask.testing import FlaskClient
 from i18n import LANGUAGES, CATALOGUES, EN, translate
 
 ROOT = Path(__file__).resolve().parent
+
+class CSRFClient(FlaskClient):
+    def post(self, *args, **kwargs):
+        with self.session_transaction() as session:
+            session.setdefault('_csrf', 'local-language-test-token')
+            token = session['_csrf']
+        kwargs.setdefault('headers', {})['X-CSRF-Token'] = token
+        return super().post(*args, **kwargs)
 
 class LanguageTests(unittest.TestCase):
     @classmethod
@@ -27,9 +37,10 @@ class LanguageTests(unittest.TestCase):
         models.AcneClassifier = models.DNOClassifier
         spec = importlib.util.spec_from_file_location('skin_test_app', ROOT / 'app.py')
         cls.module = importlib.util.module_from_spec(spec)
-        with patch.dict(sys.modules, {'models': models}):
+        with patch.dict(sys.modules, {'models': models}), patch.dict(os.environ, {'SKINSENSOR_DATA_DIR': cls.temp.name}):
             spec.loader.exec_module(cls.module)
-        cls.module.app.config.update(TESTING=True, SECRET_KEY='test-key')
+        cls.module.app.config.update(TESTING=True, SECRET_KEY='test-key', RATE_LIMITS={})
+        cls.module.app.test_client_class = CSRFClient
         with closing(sqlite3.connect(cls.database)) as conn, conn:
             conn.execute("INSERT INTO users(user_id,email,name) VALUES ('test','test@example.test','Alex')")
             conn.execute("INSERT INTO analysis_history(user_id,mode,dno_prediction,dno_confidence,acne_detected,acne_confidence,recommendation) VALUES ('test','quick','сухая кожа',0.9,0,0.8,?)", ('Тип кожи: сухая кожа (уверенность 0.90)\nНет рекомендаций (модели не загружены)',))

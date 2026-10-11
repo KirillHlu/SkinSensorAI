@@ -38,6 +38,10 @@ sys.path.insert(0, {str(root)!r})
 import torch
 torch.set_num_threads(1)
 from app import app as application
+from werkzeug.middleware.proxy_fix import ProxyFix
+# PythonAnywhere guarantees only the last X-Forwarded-For entry.
+# Enable this only in the hosted WSGI entrypoint, never for direct local access.
+application.wsgi_app = ProxyFix(application.wsgi_app, x_for=1, x_proto=0, x_host=0, x_port=0, x_prefix=0)
 application.config.update(DEBUG=False, SESSION_COOKIE_SECURE=True, SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax')
 '''
 wsgi_path.write_text(wsgi, encoding='utf-8')

@@ -4,24 +4,27 @@ import sqlite3
 import base64
 import json
 import requests
-import urllib3
+import warnings
+from contextlib import closing
+from io import BytesIO
 from pathlib import Path
-from flask import Flask, render_template, request, redirect, url_for, make_response, send_from_directory, flash, jsonify, session
-import sys
-import platform
+from flask import Flask, render_template, request, redirect, url_for, make_response, send_from_directory, flash, jsonify, session, abort, send_file
 import time
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from werkzeug.utils import secure_filename
+from PIL import Image, UnidentifiedImageError
+from security import init_security, session_secret, safe_next, reserve_global_quota
 from models import DNOClassifier, AcneClassifier
 from i18n import init_i18n, assistant_language_instruction, translate as t
 
 BASE_DIR = Path(__file__).resolve().parent
-UPLOADS = BASE_DIR / "static" / "uploads"
-DB_PATH = BASE_DIR / "web_skin_analysis.db"
+DATA_DIR = Path(os.environ.get("SKINSENSOR_DATA_DIR", BASE_DIR / "instance"))
+UPLOADS = DATA_DIR / "uploads"
+LEGACY_UPLOADS = BASE_DIR / "static" / "uploads"
+DB_PATH = Path(os.environ.get("SKINSENSOR_DB_PATH", BASE_DIR / "web_skin_analysis.db"))
 ALLOWED_EXT = {"png", "jpg", "jpeg"}
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)
 init_i18n(app)
 
 
@@ -38,7 +41,8 @@ def load_config():
 
 
 CONFIG = load_config()
-app.secret_key = os.environ.get('FLASK_SECRET') or CONFIG.get('flask', {}).get('secret_key', 'dev-secret')
+app.secret_key = session_secret(os.environ.get('FLASK_SECRET') or CONFIG.get('flask', {}).get('secret_key'), DATA_DIR)
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SKINSENSOR_HTTPS') == '1'
 
 # ensure uploads exist
 UPLOADS.mkdir(parents=True, exist_ok=True)
@@ -48,7 +52,6 @@ dno = DNOClassifier(models_dir=str(BASE_DIR / 'models'))
 acne = AcneClassifier(models_dir=str(BASE_DIR / 'models'))
 
 # --- GigaChat / consultations setup ---
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 SYSTEM_PROMPT = '''Ты - консультант по уходу за кожей и профессиональный дерматологический помощник.
 Отвечай понятно и по делу на языке, указанном в инструкции о языке сайта ниже. Учитывай историю диалога и результаты анализа кожи пользователя.
@@ -131,8 +134,9 @@ def db_get_analysis_context(user_id, limit=10):
 
 def gigachat_post(url, **kwargs):
     ca_bundle = os.environ.get('GIGACHAT_CA_BUNDLE')
-    if ca_bundle:
-        kwargs['verify'] = ca_bundle
+    if not ca_bundle and (BASE_DIR / 'gigachat-ca.crt').is_file():
+        ca_bundle = str(BASE_DIR / 'gigachat-ca.crt')
+    kwargs['verify'] = ca_bundle or True
     for attempt in range(2):
         try:
             return requests.post(url, **kwargs)
@@ -170,7 +174,6 @@ def ask_gigachat(user_id, user_message):
                 'Authorization': f'Basic {auth_key}',
             },
             data={'scope': 'GIGACHAT_API_PERS'},
-            verify=False,
             timeout=30,
         )
         token_resp.raise_for_status()
@@ -186,7 +189,6 @@ def ask_gigachat(user_id, user_message):
                 'Authorization': f'Bearer {token}',
             },
             json={'model': 'GigaChat', 'messages': messages},
-            verify=False,
             timeout=60,
         )
         chat_resp.raise_for_status()
@@ -292,25 +294,6 @@ def init_db():
     conn.close()
 
 
-def get_or_set_user_id(resp=None):
-    # anonymous id stored in cookie (used if user not logged in)
-    user_id = request.cookies.get('user_id')
-    if not user_id:
-        user_id = str(uuid.uuid4())
-        if resp is None:
-            resp = make_response()
-        resp.set_cookie('user_id', user_id, max_age=60*60*24*365)
-    return user_id, resp
-
-
-def current_user_id():
-    # return authenticated user_id (email) if logged in, else anonymous cookie id
-    auth = session.get('auth_user')
-    if auth:
-        return auth
-    return request.cookies.get('user_id')
-
-
 def login_required(f):
     from functools import wraps
     @wraps(f)
@@ -324,13 +307,12 @@ def login_required(f):
 
 # Initialize DB at startup
 init_db()
+init_security(app, DB_PATH)
 
 
 @app.route('/')
 def index():
-    resp = make_response(render_template('index.html'))
-    user_id, resp = get_or_set_user_id(resp)
-    return resp
+    return render_template('index.html')
 
 
 @app.route('/profile', methods=['GET', 'POST'])
@@ -348,6 +330,9 @@ def profile():
         name = request.form.get('name')
         age = request.form.get('age')
         prefs = request.form.get('preferences')
+        if len(name or '') > 100 or len(prefs or '') > 4000 or (age and (not age.isdigit() or not 1 <= int(age) <= 120)):
+            conn.close()
+            abort(400)
         if row:
             cursor.execute('UPDATE users SET name = ?, age = ?, preferences = ? WHERE user_id = ?', (name, age or None, prefs, user_id))
         else:
@@ -382,9 +367,32 @@ def analyze():
             flash('Неподдерживаемый формат файла', 'danger')
             return redirect(url_for('analyze'))
 
-        filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter('error', Image.DecompressionBombWarning)
+                with Image.open(file.stream) as image:
+                    if image.format not in ('JPEG', 'PNG') or image.width * image.height > app.config['MAX_IMAGE_PIXELS']:
+                        abort(400, description='Invalid or oversized image.')
+                    image.load()
+                    # Re-encode only pixels: discard EXIF, extra frames and trailing payloads.
+                    clean = Image.new('RGB', image.size)
+                    clean.paste(image.convert('RGB'))
+                    encoded = BytesIO()
+                    clean.save(encoded, format='JPEG', quality=90)
+            payload = encoded.getvalue()
+        except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning):
+            abort(400, description='Invalid image. Upload a JPEG or PNG.')
+        if len(payload) > app.config['MAX_CONTENT_LENGTH']:
+            abort(413)
+        if mode not in ('quick', 'detailed'):
+            abort(400)
+        check_upload_quota(user_id, len(payload))
+        limited = reserve_global_quota()
+        if limited is not None:
+            return limited
+        filename = uuid.uuid4().hex + '.jpg'
         save_path = UPLOADS / filename
-        file.save(save_path)
+        save_path.write_bytes(payload)
 
         # Run classifiers (they will return None if models missing)
         dno_res = dno.predict(str(save_path)) if hasattr(dno, 'predict') else None
@@ -413,7 +421,7 @@ def analyze():
             1 if (acne_res and acne_res.get('predicted_class') != 'normal') else 0,
             acne_res.get('confidence') if acne_res else 0,
             recommendation,
-            str(save_path.relative_to(BASE_DIR))
+            'uploads/' + filename
         ))
         conn.commit()
         analysis_id = cursor.lastrowid
@@ -441,8 +449,13 @@ def consult_send():
         return jsonify({'ok': False, 'error': t('Unauthorized')}), 401
     user_id = session.get('auth_user')
     text = request.form.get('message')
-    if not text:
+    if not text or not text.strip():
         return jsonify({'ok': False, 'error': t('Empty message')}), 400
+    if len(text) > 4000:
+        return jsonify({'ok': False, 'error': 'Message is too long (maximum 4000 characters).'}), 400
+    limited = reserve_global_quota()
+    if limited is not None:
+        return limited
     db_add_message(user_id, 'user', text)
     answer = ask_gigachat(user_id, text)
     db_add_message(user_id, 'assistant', answer)
@@ -462,9 +475,11 @@ def consult_history():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        name = request.form.get('name')
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        name = request.form.get('name', '')
+        if len(email) > 254 or '@' not in email or not 12 <= len(password) <= 128 or len(name) > 100:
+            abort(400, description='Use a valid email, a 12-128 character password and a name up to 100 characters.')
         if not email or not password:
             flash('Email и пароль обязательны', 'danger')
             return redirect(url_for('register'))
@@ -475,25 +490,22 @@ def register():
             conn.close()
             flash('Пользователь с таким email уже существует', 'warning')
             return redirect(url_for('register'))
+        limited = reserve_global_quota()
+        if limited is not None:
+            conn.close()
+            return limited
         user_id = email
         pw_hash = generate_password_hash(password)
-        cursor.execute('INSERT OR REPLACE INTO users (user_id, email, password_hash, name) VALUES (?, ?, ?, ?)', (user_id, email, pw_hash, name))
-        conn.commit()
-        conn.close()
-        # set session and migrate any anonymous data from cookie to this account
+        try:
+            cursor.execute('INSERT INTO users (user_id, email, password_hash, name) VALUES (?, ?, ?, ?)', (user_id, email, pw_hash, name))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            abort(400, description='Account could not be created.')
+        finally:
+            conn.close()
+        session.clear()
         session['auth_user'] = user_id
-        anon_id = request.cookies.get('user_id')
-        if anon_id and anon_id != user_id:
-            try:
-                conn = sqlite3.connect(DB_PATH)
-                cur = conn.cursor()
-                cur.execute('UPDATE messages SET user_id = ? WHERE user_id = ?', (user_id, anon_id))
-                cur.execute('UPDATE analysis_history SET user_id = ? WHERE user_id = ?', (user_id, anon_id))
-                conn.commit()
-                conn.close()
-                flash('Данные из анонимной сессии объединены с аккаунтом', 'info')
-            except Exception:
-                pass
         flash('Регистрация успешна', 'success')
         resp = make_response(redirect(url_for('dashboard')))
         # clear anonymous cookie to avoid confusion
@@ -505,42 +517,31 @@ def register():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        if len(email) > 254 or len(password) > 128:
+            abort(400)
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute('SELECT password_hash FROM users WHERE email = ?', (email,))
         row = cursor.fetchone()
         conn.close()
-        if not row or not check_password_hash(row[0], password):
+        if not row or not row[0] or not check_password_hash(row[0], password):
             flash('Неверный email или пароль', 'danger')
             return redirect(url_for('login'))
-        # login successful
+        session.clear()
         session['auth_user'] = email
-        # migrate anonymous data if present
-        anon_id = request.cookies.get('user_id')
-        if anon_id and anon_id != email:
-            try:
-                conn = sqlite3.connect(DB_PATH)
-                cur = conn.cursor()
-                cur.execute('UPDATE messages SET user_id = ? WHERE user_id = ?', (email, anon_id))
-                cur.execute('UPDATE analysis_history SET user_id = ? WHERE user_id = ?', (email, anon_id))
-                conn.commit()
-                conn.close()
-                flash('Данные из анонимной сессии объединены с аккаунтом', 'info')
-            except Exception:
-                pass
         flash('Вы вошли в систему', 'success')
-        next_url = request.args.get('next')
+        next_url = safe_next(request.args.get('next'))
         resp = make_response(redirect(next_url or url_for('dashboard')))
         resp.set_cookie('user_id', '', expires=0)
         return resp
     return render_template('login.html')
 
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
-    session.pop('auth_user', None)
+    session.clear()
     flash('Вы вышли', 'info')
     return redirect(url_for('index'))
 
@@ -569,70 +570,17 @@ def status():
     })
 
 
-@app.route('/debug')
-def debug_info():
-    # Provide detailed diagnostics to help figure out missing-model problems
-    dno_path = os.path.join(str(BASE_DIR), 'models', 'best_model_dno.keras')
-    acne_path1 = os.path.join(str(BASE_DIR), 'models', 'skin_classifier.pth')
-    acne_path2 = os.path.join(str(BASE_DIR), 'models', 'skin_classifier.pt')
-
-    info = {
-        'timestamp': time.time(),
-        'python_executable': sys.executable,
-        'cwd': os.getcwd(),
-        'base_dir': str(BASE_DIR),
-        'venv_site_packages': next((p for p in sys.path if 'site-packages' in p), None),
-        'platform': platform.platform(),
-        'python_version': platform.python_version(),
-        'tensorflow': None,
-        'torch': None,
-        'dno_model_path_checked': dno_path,
-        'dno_model_exists': os.path.exists(dno_path),
-        'dno_model_size_bytes': os.path.getsize(dno_path) if os.path.exists(dno_path) else None,
-        'acne_model_paths': [acne_path1, acne_path2],
-        'acne_model_exists': os.path.exists(acne_path1) or os.path.exists(acne_path2),
-        'acne_model_size_bytes': None,
-        'dno_loaded': bool(getattr(dno, 'model', None)),
-        'acne_loaded': bool(getattr(acne, 'model', None)),
-    }
-
-    try:
-        import tensorflow as _tf
-        info['tensorflow'] = _tf.__version__
-    except Exception:
-        info['tensorflow'] = None
-    try:
-        import torch as _torch
-        info['torch'] = _torch.__version__
-    except Exception:
-        info['torch'] = None
-
-    # acne model size check
-    if os.path.exists(acne_path1):
-        info['acne_model_size_bytes'] = os.path.getsize(acne_path1)
-    elif os.path.exists(acne_path2):
-        info['acne_model_size_bytes'] = os.path.getsize(acne_path2)
-
-    return jsonify(info)
-
-
 @app.route('/result/<int:analysis_id>')
+@login_required
 def result(analysis_id):
     # only owner can view
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute('SELECT id, user_id, mode, dno_prediction, dno_confidence, acne_detected, acne_confidence, recommendation, image_path, created_at FROM analysis_history WHERE id = ?', (analysis_id,))
+    cursor.execute('SELECT id, user_id, mode, dno_prediction, dno_confidence, acne_detected, acne_confidence, recommendation, image_path, created_at FROM analysis_history WHERE id = ? AND user_id = ?', (analysis_id, session['auth_user']))
     row = cursor.fetchone()
     conn.close()
     if not row:
-        flash('Анализ не найден', 'danger')
-        return redirect(url_for('index'))
-
-    owner = row[1]
-    current = session.get('auth_user') or request.cookies.get('user_id')
-    if owner != current:
-        flash('У вас нет доступа к этому анализу', 'danger')
-        return redirect(url_for('index'))
+        abort(404)
 
     data = {
         'id': row[0], 'user_id': row[1], 'mode': row[2], 'dno_prediction': row[3], 'dno_confidence': row[4],
@@ -640,13 +588,70 @@ def result(analysis_id):
     }
     return render_template('result.html', analysis=data)
 
-@app.route('/uploads/<path:filename>')
-def uploaded_file(filename):
-    return send_from_directory(UPLOADS, filename)
+def resolve_image_path(stored):
+    """Resolve only known upload locations, never arbitrary DB paths or symlinks."""
+    # Older local Windows records used backslashes when saving relative paths.
+    stored = stored.replace('\\', '/')
+    roots = {'uploads/': UPLOADS, 'static/uploads/': LEGACY_UPLOADS}
+    for prefix, directory in roots.items():
+        if stored.startswith(prefix):
+            name = stored[len(prefix):]
+            if not name or '/' in name or '\\' in name or name in ('.', '..'):
+                return None
+            candidate = directory / name
+            if candidate.is_symlink() or candidate.resolve().parent != directory.resolve():
+                return None
+            return candidate
+    return None
+
+
+def check_upload_quota(user_id, incoming):
+    total = sum(p.stat().st_size for folder in (UPLOADS, LEGACY_UPLOADS)
+                if folder.exists() for p in folder.iterdir() if p.is_file())
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        rows = conn.execute('SELECT image_path FROM analysis_history WHERE user_id = ?', (user_id,)).fetchall()
+    owned = {resolve_image_path(row[0]) for row in rows if row[0]}
+    user_total = sum(p.stat().st_size for p in owned if p and p.is_file())
+    if total + incoming > app.config['MAX_UPLOAD_STORAGE'] or user_total + incoming > app.config['MAX_USER_UPLOAD_STORAGE']:
+        abort(413, description='Image storage quota reached.')
+
+
+@app.route('/result/<int:analysis_id>/image')
+@login_required
+def result_image(analysis_id):
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        row = conn.execute('SELECT image_path FROM analysis_history WHERE id = ? AND user_id = ?',
+                           (analysis_id, session['auth_user'])).fetchone()
+    path = resolve_image_path(row[0]) if row and row[0] else None
+    if not path or not path.is_file():
+        abort(404)
+    # Old uploads might not have been validated. Serve only decoded image pixels.
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', Image.DecompressionBombWarning)
+            with Image.open(path) as image:
+                if image.format not in ('PNG', 'JPEG') or image.width * image.height > app.config['MAX_IMAGE_PIXELS']:
+                    abort(404)
+                clean = Image.new('RGB', image.size)
+                clean.paste(image.convert('RGB'))
+                output = BytesIO()
+                clean.save(output, format='JPEG', quality=90)
+        output.seek(0)
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning):
+        abort(404)
+    return send_file(output, mimetype='image/jpeg', download_name='analysis.jpg', max_age=0)
+
+
+@app.route('/static/<path:filename>', endpoint='static')
+def public_asset(filename):
+    # An explicit public asset list also blocks legacy photos and path traversal.
+    if filename not in ('logo.png', 'logo.svg', 'css/style.css', 'skin_algorithm_slide.html'):
+        abort(404)
+    return send_from_directory(BASE_DIR / 'static', filename)
 
 
 if __name__ == '__main__':
     app.run(
-        debug=CONFIG.get('flask', {}).get('debug', True),
+        debug=False,
         port=CONFIG.get('flask', {}).get('port', 5000)
     )

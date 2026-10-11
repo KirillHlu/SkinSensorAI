@@ -6,6 +6,7 @@
       <div class="card-body">
         <div class="eyebrow mb-3">{{ t('Ваш личный кабинет') }}</div><h3 class="mb-2">{{ t('С возвращением') }}</h3><p class="text-muted mb-4">{{ t('Войдите, чтобы продолжить заботу о коже.') }}</p>
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label class="form-label" for="email">{{ t('Электронная почта') }}</label>
             <input class="form-control" id="email" name="email" type="email" required>

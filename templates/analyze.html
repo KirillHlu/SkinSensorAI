@@ -8,6 +8,7 @@
         <h3 class="card-title">{{ t('Ваш персональный анализ') }}</h3>
         <p class="text-muted">{{ t('Снимите лицо при хорошем освещении, без сильных фильтров и масок — так результат будет точнее.') }}</p>
         <form method="post" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-4 upload-field">
             <label for="skin-image" class="form-label"><i class="bi bi-camera me-2" aria-hidden="true"></i>{{ t('Выберите фотографию лица') }}</label>
             <input id="skin-image" class="form-control" type="file" name="image" accept="image/png,image/jpeg" required>
